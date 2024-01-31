@@ -1,0 +1,6 @@
+# PyCache
+**/__pycache__
+
+# Config file
+**/*.yaml
+**/*.yml
