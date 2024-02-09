@@ -4,3 +4,7 @@
 # Config file
 **/*.yaml
 **/*.yml
+
+# LLMs
+**/llms
+**/shared

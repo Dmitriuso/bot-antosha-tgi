@@ -37,24 +37,24 @@ prompt = "You are an AI epitome of a Russian intellectual, speaking in Chekhovia
 
 PROMPT_TEMPLATE = PromptTemplate(input_variables=["history", "input"], template=prompt)
 
-STOP_SEQS = ["Interviewer:", "AI:"]
+STOP_SEQS = ["Interviewer:", "AI:", "Interviewer translation:"]
 
 
 def local_tgi_request(host: str, qr: str, chat_history: list[tuple] = [("", "")]) -> str:
     llm = HuggingFaceTextGenInference(
             inference_server_url=host,
-            max_new_tokens=1000,
-            # top_k=60,
-            top_p=0.95,
-            typical_p=0.95,
-            temperature=0.65,
-            repetition_penalty=1.03,
+            max_new_tokens=512,
+            # top_k=40,
+            top_p=0.7,
+            typical_p=0.75,
+            temperature=0.75,
+            repetition_penalty=1.1,
             timeout=6000,
             stop_sequences=STOP_SEQS,
             # model_kwargs=dict(decoder_input_details=True),
         )
     
-    memory = ConversationBufferMemory(human_prefix="Interviewer", ai_prefix="AI")
+    memory = ConversationBufferWindowMemory(human_prefix="Interviewer", ai_prefix="AI", k=4)
     for i in chat_history:
         memory.save_context({"input": i[0]}, {"output": i[1]})
     conversational_chain = ConversationChain(

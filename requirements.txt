@@ -1,8 +1,11 @@
-accelerate==0.25.0
-fastapi==0.104.1
+accelerate==0.26.1
+bitsandbytes==0.42.0
+# fastapi==0.104.1
 langchain==0.1.0
 langchain-community==0.0.10
 langchain-core==0.1.8
 pytelegrambotapi==4.15.2
-python-telegram-bot==20.7
+# python-telegram-bot==20.7
+text-generation==0.6.1
+peft==0.8.2
 uvicorn==0.23.2

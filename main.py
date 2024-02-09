@@ -23,13 +23,19 @@ bot = telebot.TeleBot(yaml_data["bot_token"], parse_mode=None)
 bot.delete_webhook()
 
 chat_history = {}
+for k, v in chat_history.items():
+    if len(chat_history[k]) > 7:
+        chat_history[k] = v[-7:]
 
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
     if message.text == "/start":
-        bot.send_message(message.chat.id, "Howdy mate")
+        bot.send_message(message.chat.id, "Здравствуйте, милостивый государь.")
     elif message.text == "/help":
-        bot.send_message(message.chat.id, "How can I help you?")
+        bot.send_message(message.chat.id, "Как могу я вам помочь?")
+    elif message.text == "/clean_history":
+        chat_history = {}
+        bot.send_message(message.chat.id, "Забыл всё прошлое, начнём с чистого листа")
     elif BOT_TAG in message.text:
         try:
             msg = (message.text).replace(BOT_TAG, "")
@@ -44,7 +50,7 @@ def get_text_messages(message):
                 bot.send_message(message.chat.id, llm_response)
                 chat_history[message.chat.id] = [(msg, llm_response)]
         except Exception:
-            bot.send_message(message.chat.id, "I don't know what to say...")
+            bot.send_message(message.chat.id, "Ушёл на переучёт...")
     else:
         pass
         
