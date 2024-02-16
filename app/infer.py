@@ -1,9 +1,12 @@
 import json
 import requests
 
-from langchain.prompts import PromptTemplate
+from langchain.prompts import PromptTemplate, ChatPromptTemplate
 from langchain_community.llms import HuggingFaceTextGenInference
+from langchain_community.chat_models import ChatAnthropic
+
 from langchain.chains import ConversationChain
+
 
 from langchain.memory import ConversationBufferWindowMemory, ConversationBufferMemory
 
@@ -45,10 +48,10 @@ def local_tgi_request(host: str, qr: str, chat_history: list[tuple] = [("", "")]
             inference_server_url=host,
             max_new_tokens=512,
             # top_k=40,
-            top_p=0.7,
-            typical_p=0.75,
+            top_p=0.8,
+            typical_p=0.85,
             temperature=0.75,
-            repetition_penalty=1.1,
+            repetition_penalty=1.03,
             timeout=6000,
             stop_sequences=STOP_SEQS,
             # model_kwargs=dict(decoder_input_details=True),
@@ -64,4 +67,25 @@ def local_tgi_request(host: str, qr: str, chat_history: list[tuple] = [("", "")]
     )
     
     llm_response = conversational_chain.predict(input=qr)
+    return llm_response
+
+
+def claude_request(token: str, qr: str, chat_history: list[tuple] = [("", "")]) -> str:
+    llm = ChatAnthropic(anthropic_api_key=token, model_name="claude-instant-1.2", temperature=0.85, top_k=60, top_p=0.75)
+
+    prompt = "Honest and truthful AI.\nConversation: {history}\nInterviewer: {input}\nAI:"
+
+    PROMPT_TEMPLATE = PromptTemplate(input_variables=["history", "input"], template=prompt)
+
+    memory = ConversationBufferWindowMemory(human_prefix="Interviewer", ai_prefix="AI", k=4)
+    for i in chat_history:
+        memory.save_context({"input": i[0]}, {"output": i[1]})
+    conversational_chain = ConversationChain(
+        llm=llm,
+        prompt=PROMPT_TEMPLATE,
+        memory=memory
+    )
+    
+    llm_response = conversational_chain.predict(input=qr)
+
     return llm_response

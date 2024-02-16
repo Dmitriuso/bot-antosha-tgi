@@ -8,3 +8,6 @@
 # LLMs
 **/llms
 **/shared
+
+# Local files
+**/files
