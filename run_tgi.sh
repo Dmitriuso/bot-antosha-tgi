@@ -1,8 +1,6 @@
 #!/bin/bash
 
 container_name=generative_tgi
-# model=lmsys/vicuna-13b-v1.5-16k  # NOTE (DO): TheBloke/Mistral-7B-OpenOrca-AWQ # mistralai/Mistral-7B-Instruct-v0.2
-# truthful one : yunconglong/Truthful_DPO_TomGrc_FusionNet_7Bx2_MoE_13B
 model=Intel/neural-chat-7b-v3-1
 volume=/llms/$model
 
@@ -13,7 +11,7 @@ docker rm -f $container_name
 
 docker run -d --name $container_name --gpus all --shm-size 1g -p 2300:80 \
   -v $PWD$volume:/data ghcr.io/huggingface/text-generation-inference:1.3.4 \
-  --model-id $model \
+  --model-id $model
   --max-stop-sequences 4 \
   --max-best-of 4 \
   --validation-workers 4 \

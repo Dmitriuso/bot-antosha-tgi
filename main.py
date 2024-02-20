@@ -49,48 +49,28 @@ def reply_and_remember(chat_id, qr) -> None:
 
 
 # Special commands handler
-@bot.message_handler(regexp=r"smt", content_types=['text'])
+@bot.message_handler(regexp=r"\/", content_types=['text'])
 def command_handle_special(message):
     if "/clean_history" in message.text:
         chat_history = {}
         bot.send_message(message.chat.id, "Conversation history has been cleared.")
     elif "/help" in message.text:
-        bot.send_message(message.chat.id, "Use keywords 'qai' or 'иив' to invoke the bot.")
+        bot.send_message(message.chat.id, "Use /clean_history to clean the memory of the bot.")
 
 
 # First general handler of messages
-@bot.message_handler(regexp=r"qai|иив", content_types=['text'])
+@bot.message_handler(content_types=['text'])
 def command_handle_text(message):
-    # try:
+    try:
         chat_id = message.chat.id
-        msg = (message.text).replace("qai ", "").replace("иив ", "")
+        msg = message.text
         reply_and_remember(chat_id=chat_id, qr=msg)
-    # except Exception:
-    #     bot.send_message(message.chat.id, "No comment.")
+    except Exception:
+        bot.send_message(message.chat.id, "No comment.")
 
 
 # Handle all sent documents of type 'application/pdf'.
 @bot.message_handler(func=lambda message: message.document.mime_type=='application/pdf', content_types=['document'])
-def command_handle_pdf(message):
-    try:
-        file_name = message.document.file_name
-        file_info = bot.get_file(message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        with open(FILES / file_name, 'wb') as new_file:
-            new_file.write(downloaded_file)
-            new_file.close()
-        
-        text = extract_normalize(str(FILES / file_name))
-        msg = message.caption
-        query = f"{msg}\n{file_name}\n{text}"
-        chat_id = message.chat.id
-        reply_and_remember(chat_id=chat_id, qr=query)
-    except Exception:
-        bot.send_message(message.chat.id, "File could not be processed.")
-
-
-# Handle all sent documents of type 'text/plain'.
-@bot.message_handler(func=lambda message: message.document.mime_type=='text/plain', content_types=['document'])
 def command_handle_pdf(message):
     try:
         file_name = message.document.file_name

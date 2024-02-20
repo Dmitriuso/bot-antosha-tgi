@@ -11,3 +11,6 @@
 
 # Local files
 **/files
+
+# Service files
+**/*.service
