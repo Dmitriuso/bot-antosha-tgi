@@ -11,7 +11,7 @@ docker rm -f $container_name
 
 docker run -d --name $container_name --gpus all --shm-size 1g -p 2300:80 \
   -v $PWD$volume:/data ghcr.io/huggingface/text-generation-inference:1.3.4 \
-  --model-id $model
+  --model-id $model \
   --max-stop-sequences 4 \
   --max-best-of 4 \
   --validation-workers 4 \
