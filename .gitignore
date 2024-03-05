@@ -8,6 +8,7 @@
 # LLMs
 **/llms
 **/shared
+*.gguf
 
 # Local files
 **/files

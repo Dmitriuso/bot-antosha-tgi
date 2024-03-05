@@ -2,15 +2,20 @@ import re
 import telebot
 import yaml
 
+from fastapi import HTTPException, status
 from pathlib import Path
 
-from app import sg_request, local_tgi_request, claude_request, extract_normalize, extract_text
+from app import sg_request, local_tgi_request, local_llamacpp_request, claude_request, extract_normalize, extract_text
 
 RGX = re.compile(r"Antosha|Антошк?а")
 
 PWD = Path(__file__).parent
+
 FILES = PWD / "files"
 FILES.mkdir(parents=False, exist_ok=True)
+
+CPP_MODELS = PWD / "cpp_models"
+GEMMA = CPP_MODELS / "gemma_2b/gemma-2b.gguf"
 
 CONFIG = PWD / "config.yaml"
 
@@ -35,17 +40,34 @@ for k, v in chat_history.items():
         chat_history[k] = v[-7:]
 
 
-def reply_and_remember(chat_id, qr) -> None:
+def reply_and_remember(chat_id, infer_type: str, qr: str) -> None:
     if chat_id in chat_history.keys():
         history = chat_history.get(chat_id)
-        llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
-        bot.send_message(chat_id, llm_response)
-        history.append((qr, llm_response))
+        match infer_type:
+            case "tgi":
+                response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
+            case "cpp":
+                response = local_llamacpp_request(model_path=GEMMA, qr=qr, chat_history=history)
+            case "claude":
+                response = claude_request(token=CLAUDE_TOKEN, qr=qr, chat_history=history)
+            case _:
+                response = "No such inference mode"
+                
+        bot.send_message(chat_id, response)
+        history.append((qr, response))
         chat_history[chat_id] = history
     else:
-        llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
-        bot.send_message(chat_id, llm_response)
-        chat_history[chat_id] = [(qr, llm_response)]
+        match infer_type:
+            case "tgi":
+                response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
+            case "cpp":
+                response = local_llamacpp_request(model_path=GEMMA, qr=qr)
+            case "claude":
+                response = claude_request(token=CLAUDE_TOKEN, qr=qr)
+            case _:
+                response = "No such inference mode"
+        bot.send_message(chat_id, response)
+        chat_history[chat_id] = [(qr, response)]
 
 
 # Special commands handler
