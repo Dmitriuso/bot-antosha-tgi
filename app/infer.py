@@ -81,7 +81,7 @@ def local_llamacpp_request(model_path: str, qr: str, chat_history: list[tuple] =
         top_p=0.8,
         n_batch=8,
         n_ctx=4096,
-        n_gpu_layers=43,
+        n_gpu_layers=0,
         verbose=True
     )
 

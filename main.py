@@ -34,25 +34,44 @@ BOT_TAG = yaml_data["bot_tag"]
 bot = telebot.TeleBot(yaml_data["bot_token"], parse_mode=None)
 bot.delete_webhook()
 
+INFER_MODE = "cpp" 
 CHAT_HISTORY = {}
 
 
 
-def reply_and_remember(chat_id, infer_type qr) -> None:
+def reply_and_remember(chat_id, infer_type: str, qr: str) -> None:
     if chat_id in CHAT_HISTORY.keys():
         history = CHAT_HISTORY.get(chat_id)
-        llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
-        bot.send_message(chat_id, llm_response)
-        history.append((qr, llm_response))
+        match infer_type:
+            case "tgi":
+                response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
+            case "cpp":
+                response = local_llamacpp_request(model_path=GEMMA, qr=qr, chat_history=history)
+            case "claude":
+                response = claude_request(token=CLAUDE_TOKEN, qr=qr, chat_history=history)
+            case _:
+                response = "No such inference mode"
+
+        bot.send_message(chat_id, response)
+        history.append((qr, response))
         CHAT_HISTORY[chat_id] = history
 
         for k, v in CHAT_HISTORY.items():
             if len(CHAT_HISTORY[k]) > 5:
                 CHAT_HISTORY[k] = v[-5:]
     else:
-        llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
-        bot.send_message(chat_id, llm_response)
-        CHAT_HISTORY[chat_id] = [(qr, llm_response)]
+        match infer_type:
+            case "tgi":
+                response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
+            case "cpp":
+                response = local_llamacpp_request(model_path=GEMMA, qr=qr)
+            case "claude":
+                response = claude_request(token=CLAUDE_TOKEN, qr=qr)
+            case _:
+                response = "No such inference mode"
+
+        bot.send_message(chat_id, response)
+        CHAT_HISTORY[chat_id] = [(qr, response)]
 
 
 def clear_chat_history(chat_id):
@@ -95,7 +114,7 @@ def command_handle_text(message):
     try:
         chat_id = message.chat.id
         msg = message.text
-        reply_and_remember(chat_id=chat_id, qr=msg)
+        reply_and_remember(chat_id=chat_id, infer_type=INFER_MODE, qr=msg)
     except:
         bot.send_message(message.chat.id, "No comment.")
 
@@ -115,7 +134,7 @@ def command_handle_pdf(message):
         msg = message.caption
         query = f"{msg}\n{file_name}\n{text}"
         chat_id = message.chat.id
-        reply_and_remember(chat_id=chat_id, qr=query)
+        reply_and_remember(chat_id=chat_id, infer_type=INFER_MODE, qr=query)
     except Exception:
         bot.send_message(message.chat.id, "File could not be processed.")
 
