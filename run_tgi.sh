@@ -1,7 +1,7 @@
 #!/bin/bash
 
 container_name=generative_tgi
-model=Intel/neural-chat-7b-v3-1
+model=lmsys/vicuna-7b-v1.5-16k
 volume=/llms/$model
 
 
@@ -15,11 +15,11 @@ docker run -d --name $container_name --gpus all --shm-size 1g -p 2300:80 \
   --max-stop-sequences 4 \
   --max-best-of 4 \
   --validation-workers 4 \
-  --max-concurrent-requests 1 \
-  --max-input-length 2048 \
-  --max-total-tokens 2560 \
-  --max-batch-prefill-tokens 2560 \
-  --max-batch-total-tokens 2560 \
+  --max-concurrent-requests 2 \
+  --max-input-length 4096 \
+  --max-total-tokens 4608 \
+  --max-batch-prefill-tokens 4608 \
+  --max-batch-total-tokens 4608 \
   --waiting-served-ratio 1.3 \
   --env \
   --trust-remote-code \
