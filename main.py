@@ -2,7 +2,6 @@ import re
 import telebot
 import yaml
 
-from fastapi import HTTPException, status
 from pathlib import Path
 
 from app import sg_request, local_tgi_request, local_llamacpp_request, claude_request, extract_normalize, extract_text
@@ -46,7 +45,7 @@ def reply_and_remember(chat_id, infer_type: str, qr: str) -> None:
             case "tgi":
                 response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
             case "cpp":
-                response = local_llamacpp_request(model_path=GEMMA, qr=qr, chat_history=history)
+                response = local_llamacpp_request(model_path=str(GEMMA), qr=qr, chat_history=history)
             case "claude":
                 response = claude_request(token=CLAUDE_TOKEN, qr=qr, chat_history=history)
             case _:
@@ -64,7 +63,7 @@ def reply_and_remember(chat_id, infer_type: str, qr: str) -> None:
             case "tgi":
                 response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
             case "cpp":
-                response = local_llamacpp_request(model_path=GEMMA, qr=qr)
+                response = local_llamacpp_request(model_path=str(GEMMA), qr=qr)
             case "claude":
                 response = claude_request(token=CLAUDE_TOKEN, qr=qr)
             case _:
@@ -111,12 +110,12 @@ def command_handle_special(message):
 # First general handler of messages
 @bot.message_handler(content_types=['text'])
 def command_handle_text(message):
-    try:
+    # try:
         chat_id = message.chat.id
         msg = message.text
         reply_and_remember(chat_id=chat_id, infer_type=INFER_MODE, qr=msg)
-    except:
-        bot.send_message(message.chat.id, "No comment.")
+    # except:
+    #     bot.send_message(message.chat.id, "No comment.")
 
 
 # Handle all sent documents of type 'application/pdf'.

@@ -76,12 +76,13 @@ def local_llamacpp_request(model_path: str, qr: str, chat_history: list[tuple] =
         last_n_tokens_size=64,
         max_tokens=512,
         # min_tokens=512,
-        temperature=0.45,
-        top_k=60,
+        temperature=0.15,
+        top_k=30,
         top_p=0.8,
-        n_batch=8,
+        n_batch=2,
         n_ctx=4096,
-        n_gpu_layers=0,
+        n_gpu_layers=19,
+        use_mlock=True,
         verbose=True
     )
 

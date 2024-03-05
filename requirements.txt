@@ -9,3 +9,5 @@ text-generation==0.6.1
 peft==0.8.2
 pdfminer-six==20221105
 uvicorn==0.23.2
+
+CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install --upgrade --force-reinstall llama-cpp-python --no-cache-dir --verbose
