@@ -29,33 +29,59 @@ BOT_TAG = yaml_data["bot_tag"]
 bot = telebot.TeleBot(yaml_data["bot_token"], parse_mode=None)
 bot.delete_webhook()
 
-chat_history = {}
-for k, v in chat_history.items():
-    if len(chat_history[k]) > 7:
-        chat_history[k] = v[-7:]
+CHAT_HISTORY = {}
+
 
 
 def reply_and_remember(chat_id, qr) -> None:
-    if chat_id in chat_history.keys():
-        history = chat_history.get(chat_id)
+    if chat_id in CHAT_HISTORY.keys():
+        history = CHAT_HISTORY.get(chat_id)
         llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr, chat_history=history)
         bot.send_message(chat_id, llm_response)
         history.append((qr, llm_response))
-        chat_history[chat_id] = history
+        CHAT_HISTORY[chat_id] = history
+
+        for k, v in CHAT_HISTORY.items():
+            if len(CHAT_HISTORY[k]) > 5:
+                CHAT_HISTORY[k] = v[-5:]
     else:
         llm_response = local_tgi_request(host=LOCAL_TGI_HOST, qr=qr)
         bot.send_message(chat_id, llm_response)
-        chat_history[chat_id] = [(qr, llm_response)]
+        CHAT_HISTORY[chat_id] = [(qr, llm_response)]
+
+
+def clear_chat_history(chat_id):
+    CHAT_HISTORY[chat_id] = []
+
+
+def show_chat_history(chat_id=None):
+    if chat_id == None:
+        return CHAT_HISTORY
+    else:
+        return CHAT_HISTORY[chat_id]
 
 
 # Special commands handler
 @bot.message_handler(regexp=r"\/", content_types=['text'])
 def command_handle_special(message):
     if "/clean_history" in message.text:
-        chat_history = {}
-        bot.send_message(message.chat.id, "Conversation history has been cleared.")
+        try:
+            clear_chat_history(message.chat.id)
+            bot.send_message(message.chat.id, f"Conversation history has been wiped out. This is what the conversation history looks like now: {show_chat_history(message.chat.id)}")
+        except:
+            bot.send_message(message.chat.id, f"Hasn't been given access to edit the conversation history. This is what the conversation history looks like: {show_chat_history(message.chat.id)}")
+    elif message.text == "/chat_history":
+        try:
+            bot.send_message(message.chat.id, f"This is what the conversation history looks like now: {show_chat_history(message.chat.id)}")
+        except:
+            bot.send_message(message.chat.id, "No conversation history")
+    elif message.text == "/full_chat_history":
+        try:
+            bot.send_message(message.chat.id, f"This is what all conversation histories look like now: {show_chat_history()}")
+        except:
+            bot.send_message(message.chat.id, "No conversation histories")
     elif "/help" in message.text:
-        bot.send_message(message.chat.id, "Use /clean_history to clean the memory of the bot.")
+        bot.send_message(message.chat.id, "Use /clean_history to clean the memory of the bot.\nUse /chat_history to show the conversation history.")
 
 
 # First general handler of messages
@@ -65,7 +91,7 @@ def command_handle_text(message):
         chat_id = message.chat.id
         msg = message.text
         reply_and_remember(chat_id=chat_id, qr=msg)
-    except Exception:
+    except:
         bot.send_message(message.chat.id, "No comment.")
 
 
