@@ -15,3 +15,5 @@
 
 # Service files
 **/*.service
+**/run_service
+**/run
