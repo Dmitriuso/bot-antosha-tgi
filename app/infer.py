@@ -1,5 +1,6 @@
 import json
 import requests
+import traceback
 import yaml
 
 from langchain.prompts import PromptTemplate, ChatPromptTemplate
@@ -23,7 +24,8 @@ SG_HOST = yaml_data["sg_host"]
 LOCAL_TGI_HOST = yaml_data["local_tgi_host"]
 
 CPP_MODELS = ROOT/ "cpp_models"
-CPP_HOST = CPP_MODELS / "gemma_2b/gemma-2b.gguf"
+CPP_MODEL_NAME = yaml_data["cpp_model"]
+CPP_HOST = CPP_MODELS / CPP_MODEL_NAME
 
 CLAUDE_TOKEN = yaml_data["claude_token"]
 
@@ -83,48 +85,53 @@ class InferenceManager:
             llm_response = json_response.get('results').get('answer')
             return llm_response
         except Exception:
-            return "I don't know what to say..."
+            return traceback.print_exc() # "I don't know what to say..."
         
     # TGI / cpp / Claude inference
     def llm_request(self, qr: str, prompt: str | None = None, chat_history: list[tuple] = [("", "")]) -> str:
-        if prompt == None:
-            prompt = self._default_sys_prompt
+        try:
+            if prompt == None:
+                prompt = self._default_sys_prompt
 
-        prompt_template = PromptTemplate(input_variables=["history", "input"], template=prompt)
+            prompt_template = PromptTemplate(input_variables=["history", "input"], template=prompt)
 
-        match self.inf_mode:
-            case "tgi":
-                llm = HuggingFaceTextGenInference(
-                        inference_server_url=self.host,
-                        max_new_tokens=512,
-                        top_k=60,
+            match self.inf_mode:
+                case "tgi":
+                    llm = HuggingFaceTextGenInference(
+                            inference_server_url=self.host,
+                            max_new_tokens=512,
+                            top_k=60,
+                            top_p=0.8,
+                            typical_p=0.85,
+                            temperature=0.65,
+                            repetition_penalty=1.03,
+                            timeout=40,
+                            stop_sequences=STOP_SEQS,
+                            # model_kwargs=dict(decoder_input_details=True),
+                        )
+                case "cpp":
+                    llm = LlamaCpp(
+                        model_path=str(self.host),
+                        last_n_tokens_size=64,
+                        max_tokens=1024,
+                        # min_tokens=512,
+                        temperature=0.85,
+                        top_k=30,
                         top_p=0.8,
-                        typical_p=0.85,
-                        temperature=0.65,
-                        repetition_penalty=1.03,
-                        timeout=20,
-                        stop_sequences=STOP_SEQS,
-                        # model_kwargs=dict(decoder_input_details=True),
+                        n_batch=16,
+                        n_ctx=2048,
+                        n_gpu_layers=33,
+                        # f16_kv=True, # not sure I need this
+                        # grammar_path=CPP_MODELS / "grammar.gbnf", # TODO: develop a proper grammar file
+                        use_mlock=True,
+                        verbose=True,
                     )
-            case "cpp":
-                llm = LlamaCpp(
-                    model_path=self.host,
-                    last_n_tokens_size=64,
-                    max_tokens=512,
-                    # min_tokens=512,
-                    temperature=0.15,
-                    top_k=30,
-                    top_p=0.8,
-                    n_batch=8   ,
-                    n_ctx=4096,
-                    n_gpu_layers=19,
-                    use_mlock=True,
-                    verbose=True
-                )
-            case "claude":
-                llm = ChatAnthropic(anthropic_api_key=CLAUDE_TOKEN, model_name="claude-2.1", temperature=0.85, top_k=60, top_p=0.75)
-            case _:
-                return "No such inference mode"
+                case "claude":
+                    llm = ChatAnthropic(anthropic_api_key=CLAUDE_TOKEN, model_name="claude-2.1", temperature=0.85, top_k=60, top_p=0.75)
+                case _:
+                    return "No such inference mode"
+        except Exception:
+            return traceback.print_exc()
         
         memory = ConversationBufferWindowMemory(human_prefix="Human", ai_prefix="AI", k=4)
         for i in chat_history:
@@ -148,5 +155,3 @@ class InferenceManager:
                 llm_response = "I don't know what to say: my powers are limited."
         
         return llm_response
-
-

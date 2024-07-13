@@ -5,6 +5,9 @@
 **/*.yaml
 **/*.yml
 
+# Grammar files
+**/*.gbnf
+
 # LLMs
 **/llms
 **/shared

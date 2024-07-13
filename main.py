@@ -148,7 +148,7 @@ def button3(message):
 
 
 # Special commands handler
-@bot.message_handler(regexp=r"\/", content_types=['text'])
+@bot.message_handler(regexp=r"\/[a-z\_]+", content_types=['text'])
 def command_handle_special(message):
     if "/new_prompt" in message.text:
         try:
