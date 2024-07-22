@@ -2,9 +2,12 @@ import datetime
 import logging
 import re
 import telebot
+import time
+import traceback
 import yaml
 
 from pathlib import Path
+from typing import AnyStr, Tuple
 
 from app import InferenceManager, extract_normalize, extract_text
 
@@ -66,7 +69,6 @@ def reply_and_remember(chat_id, qr: str, user_system_prompt: str | None = None) 
                     CHAT_HISTORY[k] = v[-5:]
         else:
             response = inf_manager.infer(prompt=user_system_prompt, qr=qr)
-
             bot.send_message(chat_id, response)
             CHAT_HISTORY[chat_id] = [(qr, response)]
 
@@ -75,7 +77,7 @@ def reply_and_remember(chat_id, qr: str, user_system_prompt: str | None = None) 
             history = CHAT_HISTORY.get(chat_id)
 
             response = inf_manager.infer(qr=qr, chat_history=history)
-
+            
             bot.send_message(chat_id, response)
             history.append((qr, response))
             CHAT_HISTORY[chat_id] = history
@@ -85,15 +87,23 @@ def reply_and_remember(chat_id, qr: str, user_system_prompt: str | None = None) 
                     CHAT_HISTORY[k] = v[-5:]
         else:
             response = inf_manager.infer(qr=qr)
-
             bot.send_message(chat_id, response)
             CHAT_HISTORY[chat_id] = [(qr, response)]
+
 
 def set_lang(lang: str, chat_id):
     LANG = lang
     if CHAT_HISTORY[chat_id]:
         clear_chat_history(chat_id)
     return LANG
+
+
+def add_to_chat_history(chat_id, entry: tuple):
+    if chat_id in list(CHAT_HISTORY.keys()):
+        CHAT_HISTORY[chat_id].append(entry)
+    else:
+        CHAT_HISTORY[chat_id] = [entry]
+
 
 def clear_chat_history(chat_id):
     CHAT_HISTORY[chat_id] = []
@@ -169,7 +179,9 @@ def command_handle_special(message):
             bot.send_message(message.chat.id, f"Hasn't been given access to edit the conversation history. This is what the conversation history looks like: {show_chat_history(message.chat.id)}")
     elif message.text == "/chat_history":
         try:
-            bot.send_message(message.chat.id, f"This is what the conversation history looks like now: {show_chat_history(message.chat.id)}")
+            bot.send_message(message.chat.id, f"This is what the conversation history looks like now:")
+            for i in show_chat_history(message.chat.id):
+                bot.send_message(message.chat.id, f"Round: {i}")
         except:
             bot.send_message(message.chat.id, "No conversation history")
     elif message.text == "/full_chat_history":
@@ -193,8 +205,10 @@ def command_handle_text(message):
             reply_and_remember(chat_id=chat_id, user_system_prompt=USER_SYSTEM_PROMPTS.get(message.chat.id), qr=msg)
         else:
             reply_and_remember(chat_id=chat_id, qr=msg)
-    except:
-        bot.send_message(message.chat.id, "No comment.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"An error occurred: {e}")
+        clear_chat_history(message.chat.id)
+        return traceback.print_exc()
 
 
 # Handle all sent documents of type 'application/pdf'.
@@ -209,12 +223,25 @@ def command_handle_pdf(message):
             new_file.close()
 
         text = extract_normalize(str(FILES / file_name))
-        msg = message.caption
-        query = f"{msg}\n{file_name}\n{text}"
-        chat_id = message.chat.id
-        reply_and_remember(chat_id=chat_id, infer_type=INFER_MODE, qr=query)
+        if text:
+            # Split text into chunks of 4096 characters (Telegram's message limit)
+            chunks = [text[i:i+3800] for i in range(0, len(text), 3800)]
+            for chunk in chunks:
+                extracted_entry = (chunk, "Thank you for the provided context. You can now ask me questions about it.")
+                add_to_chat_history(
+                    chat_id=message.chat.id,
+                    entry=extracted_entry
+                )
+        else:
+            bot.send_message(message.chat.id, "No text could be extracted from the PDF.")
+        
+        # msg = message.caption
+        # query = f"{msg}\n{file_name}\n{text}"
+        # chat_id = message.chat.id
+        # reply_and_remember(chat_id=chat_id, infer_type=INFER_MODE, qr=query)
     except Exception:
         bot.send_message(message.chat.id, "File could not be processed.")
+        return traceback.print_exc() 
 
 
 

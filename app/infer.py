@@ -29,11 +29,11 @@ CPP_HOST = CPP_MODELS / CPP_MODEL_NAME
 
 CLAUDE_TOKEN = yaml_data["claude_token"]
 
-DEFAULT_PROMPT_EN = "Polite and respectful assistant answers questions asked by a human, taking into account the previous conversation.\nConversation: {history}\nHuman: {input}\nAssistant:"
+DEFAULT_PROMPT_EN = "Polite and respectful assistant provides concise and factual answers to the questions asked by a human, taking into account the previous conversation.\nConversation: {history}\nHuman: {input}\nAssistant:"
 
 DEFAULT_PROMPT_FR = "L'assistant poli et respectueux répond aux questions posées par un humain en tenant compte de la conversation précédente.\nConversation: {history}\nHuman: {input}\nAssistant:"
 
-STOP_SEQS = ["Human:", "Assistant:", "Human translation:"]
+STOP_SEQS = ["Human:", "Assistant:", "Human translation:", "AI:"]
 
 
 class InferenceManager:
@@ -99,12 +99,12 @@ class InferenceManager:
                 case "tgi":
                     llm = HuggingFaceTextGenInference(
                             inference_server_url=self.host,
-                            max_new_tokens=512,
+                            max_new_tokens=256,
                             top_k=60,
                             top_p=0.8,
                             typical_p=0.85,
                             temperature=0.65,
-                            repetition_penalty=1.03,
+                            repetition_penalty=1.05,
                             timeout=40,
                             stop_sequences=STOP_SEQS,
                             # model_kwargs=dict(decoder_input_details=True),
@@ -145,7 +145,7 @@ class InferenceManager:
         llm_response = conversational_chain.predict(input=qr)
         return llm_response
 
-    def infer(self, qr: str, prompt: str = DEFAULT_PROMPT_FR, chat_history: list[tuple] = [("", "")]):
+    def infer(self, qr: str, prompt: str = DEFAULT_PROMPT_EN, chat_history: list[tuple] = [("", "")]):
         match self.inf_mode:
             case "sg":
                 llm_response = self.sg_request(qr=qr, chat_history=chat_history)
@@ -154,4 +154,4 @@ class InferenceManager:
             case _:
                 llm_response = "I don't know what to say: my powers are limited."
         
-        return llm_response
+        return llm_response.lstrip(r"\n+")
