@@ -4,6 +4,7 @@
 # Config file
 **/*.yaml
 **/*.yml
+**/.env
 
 # Grammar files
 **/*.gbnf

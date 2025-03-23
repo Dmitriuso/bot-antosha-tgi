@@ -1,3 +1,4 @@
+import os
 import json
 import requests
 import traceback
@@ -11,23 +12,24 @@ from langchain.chains import ConversationChain
 
 from langchain.memory import ConversationBufferWindowMemory, ConversationBufferMemory
 
+from dotenv import load_dotenv
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-CONFIG = ROOT / "config.yaml"
 
-# load the config from YML file: if config is not commited in a project, you should add it manually
-with open(CONFIG, 'r') as f:
-    yaml_data = yaml.safe_load(f)
+load_dotenv(override=True)
 
-SG_HOST = yaml_data["sg_host"]
-LOCAL_TGI_HOST = yaml_data["local_tgi_host"]
+SG_HOST = os.getenv("SG_HOST")
+LOCAL_TGI_HOST = os.getenv("LOCAL_TGI_HOST")
+
+SG_HOST = os.getenv("SG_HOST")
+LOCAL_TGI_HOST = os.getenv("LOCAL_TGI_HOST")
 
 CPP_MODELS = ROOT/ "cpp_models"
-CPP_MODEL_NAME = yaml_data["cpp_model"]
+CPP_MODEL_NAME = os.getenv("CPP_MODEL_NAME")
 CPP_HOST = CPP_MODELS / CPP_MODEL_NAME
 
-CLAUDE_TOKEN = yaml_data["claude_token"]
+CLAUDE_TOKEN = os.getenv("CLAUDE_TOKEN")
 
 DEFAULT_PROMPT_EN = "Polite and respectful assistant provides concise and factual answers to the questions asked by a human, taking into account the previous conversation.\nConversation: {history}\nHuman: {input}\nAssistant:"
 

@@ -2,9 +2,11 @@ import datetime
 import logging
 import re
 import telebot
-import time
+import os
 import traceback
 import yaml
+
+from dotenv import load_dotenv
 
 from pathlib import Path
 from typing import AnyStr, Tuple
@@ -14,6 +16,10 @@ from app import InferenceManager, extract_normalize, extract_text
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+load_dotenv(override=True)
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TAG = os.getenv("BOT_TAG")
 
 RGX = re.compile(r"Antosha|Антошк?а")
 
@@ -22,18 +28,10 @@ PWD = Path(__file__).parent
 FILES = PWD / "files"
 FILES.mkdir(parents=False, exist_ok=True)
 
-CONFIG = PWD / "config.yaml"
-
-# load the config from YML file: config is not commited in a project, you should add it manually
-with open(CONFIG, 'r') as f:
-    yaml_data = yaml.safe_load(f)
-
-BOT_TAG = yaml_data["bot_tag"]
-
-bot = telebot.TeleBot(yaml_data["bot_token"], parse_mode=None)
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 bot.delete_webhook()
 
-INFER_MODE = yaml_data["infer_mode"]
+INFER_MODE = os.getenv("INFER_MODE")
 USER_SYSTEM_PROMPTS = {}
 CHAT_HISTORY = {}
 
@@ -160,40 +158,30 @@ def button3(message):
 # Special commands handler
 @bot.message_handler(regexp=r"\/[a-z\_]+", content_types=['text'])
 def command_handle_special(message):
-    if "/new_prompt" in message.text:
-        try:
-            set_user_system_prompt(message.chat.id, str(message.text))
-            bot.send_message(message.chat.id, "Your system prompt have been taken into account")
-        except:
-            bot.send_message(message.chat.id, "System prompt could not be taken into account")
-    elif message.text == "/current_prompt":
-        try:
-            bot.send_message(message.chat.id, show_user_system_prompt(message.chat.id))
-        except:
-            bot.send_message(message.chat.id, "Could not access system prompt")
-    elif message.text == "/clean_history":
-        try:
-            clear_chat_history(message.chat.id)
-            bot.send_message(message.chat.id, f"Conversation history has been wiped out. This is what the conversation history looks like now: {show_chat_history(message.chat.id)}")
-        except:
-            bot.send_message(message.chat.id, f"Hasn't been given access to edit the conversation history. This is what the conversation history looks like: {show_chat_history(message.chat.id)}")
-    elif message.text == "/chat_history":
-        try:
-            bot.send_message(message.chat.id, f"This is what the conversation history looks like now:")
-            for i in show_chat_history(message.chat.id):
-                bot.send_message(message.chat.id, f"Round: {i}")
-        except:
-            bot.send_message(message.chat.id, "No conversation history")
-    elif message.text == "/full_chat_history":
-        try:
-            bot.send_message(message.chat.id, f"This is what all conversation histories look like now: {show_chat_history()}")
-        except:
-            bot.send_message(message.chat.id, "No conversation histories")
-    elif message.text == "/help":
-        bot.send_message(message.chat.id, HELP_MESSAGE)
-    else:
-        bot.send_message(message.chat.id, "No such special command. Use /help to see the special commands available.")
-
+    chat_id = message.chat.id
+    cmd = message.text
+    
+    try:
+        if "/new_prompt" in cmd:
+            set_user_system_prompt(chat_id, cmd)
+            bot.send_message(chat_id, "Your system prompt has been updated")
+        elif cmd == "/current_prompt":
+            bot.send_message(chat_id, show_user_system_prompt(chat_id))
+        elif cmd == "/clean_history":
+            clear_chat_history(chat_id)
+            bot.send_message(chat_id, f"Conversation history cleared: {show_chat_history(chat_id)}")
+        elif cmd == "/chat_history":
+            bot.send_message(chat_id, "Current conversation history:")
+            for i in show_chat_history(chat_id):
+                bot.send_message(chat_id, f"Round: {i}")
+        elif cmd == "/full_chat_history":
+            bot.send_message(chat_id, f"All conversation histories: {show_chat_history()}")
+        elif cmd == "/help":
+            bot.send_message(chat_id, HELP_MESSAGE)
+        else:
+            bot.send_message(chat_id, "Unknown command. Use /help for available commands.")
+    except Exception as e:
+        bot.send_message(chat_id, f"Error processing command: {e}")
 
 # First general handler of messages
 @bot.message_handler(content_types=['text'])

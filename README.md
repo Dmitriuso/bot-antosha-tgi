@@ -1,5 +1,15 @@
 # Simple Telegram bot with LLM under the hood 
 
+## Setup
+
+It is recommended to use conda to create a new environment and install all the dependencies.
+
+```
+conda create -n llm-bot python=3.12.9
+conda activate llm-bot
+pip install -r requirements.txt
+```
+
 ## Launch Bot App
 
 ### Temporary launch
