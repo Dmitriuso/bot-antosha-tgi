@@ -45,48 +45,32 @@ HELP_MESSAGE = """
 LANG: str = "EN"
 
 inf_manager = InferenceManager(
-    inf_mode=INFER_MODE,
-    lang=LANG
+    base_url=os.getenv("INFER_BASE_URL")
 )
 
 
 def reply_and_remember(chat_id, qr: str, user_system_prompt: str | None = None) -> None:
     logger.info(f"\n{datetime.datetime.now()} - {qr}")
+    
+    # Get existing history or initialize empty list
+    history = CHAT_HISTORY.get(chat_id, [])
+    
+    # Generate response with appropriate parameters
+    kwargs = {"qr": qr}
     if user_system_prompt:
-        if chat_id in CHAT_HISTORY.keys():
-            history = CHAT_HISTORY.get(chat_id)
-            
-            response = inf_manager.infer(prompt=user_system_prompt, qr=qr, chat_history=history)
-
-            bot.send_message(chat_id, response)
-            history.append((qr, response))
-            CHAT_HISTORY[chat_id] = history
-
-            for k, v in CHAT_HISTORY.items():
-                if len(CHAT_HISTORY[k]) > 5:
-                    CHAT_HISTORY[k] = v[-5:]
-        else:
-            response = inf_manager.infer(prompt=user_system_prompt, qr=qr)
-            bot.send_message(chat_id, response)
-            CHAT_HISTORY[chat_id] = [(qr, response)]
-
-    else:
-        if chat_id in CHAT_HISTORY.keys():
-            history = CHAT_HISTORY.get(chat_id)
-
-            response = inf_manager.infer(qr=qr, chat_history=history)
-            
-            bot.send_message(chat_id, response)
-            history.append((qr, response))
-            CHAT_HISTORY[chat_id] = history
-
-            for k, v in CHAT_HISTORY.items():
-                if len(CHAT_HISTORY[k]) > 5:
-                    CHAT_HISTORY[k] = v[-5:]
-        else:
-            response = inf_manager.infer(qr=qr)
-            bot.send_message(chat_id, response)
-            CHAT_HISTORY[chat_id] = [(qr, response)]
+        kwargs["prompt"] = user_system_prompt
+    if history:
+        kwargs["chat_history"] = history
+    
+    response = inf_manager.infer(**kwargs)
+    
+    # Send response and update history
+    bot.send_message(chat_id, response)
+    CHAT_HISTORY[chat_id] = history + [(qr, response)]
+    
+    # Limit history to last 5 entries
+    if len(CHAT_HISTORY[chat_id]) > 5:
+        CHAT_HISTORY[chat_id] = CHAT_HISTORY[chat_id][-5:]
 
 
 def set_lang(lang: str, chat_id):
@@ -184,7 +168,7 @@ def command_handle_special(message):
         bot.send_message(chat_id, f"Error processing command: {e}")
 
 # First general handler of messages
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(func=lambda message: message.text and (not message.text.startswith('/') or '@AntoshaTchekhonteBot' in message.text), content_types=['text'])
 def command_handle_text(message):
     try:
         chat_id = message.chat.id

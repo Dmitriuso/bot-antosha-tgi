@@ -27,6 +27,6 @@ docker run --gpus '"device=0,1"' \
     --model $MODEL_NAME \
     --dtype bfloat16 \
     --chat-template-content-format "string" \
-    --max_model_len 1000 \
-    --enable-reasoning \
-    --reasoning-parser deepseek_r1
+    --max_model_len 16384 \
+    # --enable-reasoning \
+    # --reasoning-parser deepseek_r1

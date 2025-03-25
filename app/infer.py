@@ -1,16 +1,7 @@
 import os
-import json
-import requests
-import traceback
-import yaml
 
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain_community.llms import HuggingFaceTextGenInference, LlamaCpp
-from langchain_community.chat_models import ChatAnthropic
-
-from langchain.chains import ConversationChain
-
-from langchain.memory import ConversationBufferWindowMemory, ConversationBufferMemory
+from openai import OpenAI
+from textwrap import dedent
 
 from dotenv import load_dotenv
 from pathlib import Path
@@ -19,141 +10,183 @@ ROOT = Path(__file__).parent.parent
 
 load_dotenv(override=True)
 
-SG_HOST = os.getenv("SG_HOST")
-LOCAL_TGI_HOST = os.getenv("LOCAL_TGI_HOST")
-
-SG_HOST = os.getenv("SG_HOST")
-LOCAL_TGI_HOST = os.getenv("LOCAL_TGI_HOST")
-
-CPP_MODELS = ROOT/ "cpp_models"
-CPP_MODEL_NAME = os.getenv("CPP_MODEL_NAME")
-CPP_HOST = CPP_MODELS / CPP_MODEL_NAME
-
-CLAUDE_TOKEN = os.getenv("CLAUDE_TOKEN")
-
-DEFAULT_PROMPT_EN = "Polite and respectful assistant provides concise and factual answers to the questions asked by a human, taking into account the previous conversation.\nConversation: {history}\nHuman: {input}\nAssistant:"
-
-DEFAULT_PROMPT_FR = "L'assistant poli et respectueux répond aux questions posées par un humain en tenant compte de la conversation précédente.\nConversation: {history}\nHuman: {input}\nAssistant:"
-
-STOP_SEQS = ["Human:", "Assistant:", "Human translation:", "AI:"]
+DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant that can answer questions and help with tasks.
+"""
 
 
 class InferenceManager:
-    def __init__(self, inf_mode: str, lang: str = "EN") -> None:
-        self.inf_mode = inf_mode
-        self.host = self.get_host()
-        self.lang = lang
-        self.default_sys_prompt = self.get_default_sys_prompt()
-
-    def get_default_sys_prompt(self) -> str:
-        match self.lang:
-            case "EN":
-                return DEFAULT_PROMPT_EN
-            case "FR":
-                return DEFAULT_PROMPT_FR
-            case _:
-                raise ValueError("Unsupported language")
-
-    def get_host(self):
-        match self.inf_mode:
-            case "sg":
-                return SG_HOST
-            case "tgi":
-                return LOCAL_TGI_HOST
-            case "cpp":
-                return CPP_HOST
-            case "claude":
-                return ""
-            case _:
-                raise ValueError("No such inference mode")
-
-
-    # SensibleGenerative API inference
-    def sg_request(self, qr: str = "what'up", ctxt: str = "", chat_history: list[tuple] = [("", "")]) -> str:
-        try:
-            headers = {
-                "Content-Type": "application/json",
-            }
-            query = {
-                "request": {
-                    "lang": self.lang,
-                    "context": ctxt,
-                    "chat_history": chat_history,
-                    "query": qr
-                }
-            }
-            response = requests.post(self.host, headers=headers, json=query)
-            json_response = json.loads(response.text)
-            llm_response = json_response.get('results').get('answer')
-            return llm_response
-        except Exception:
-            return traceback.print_exc() # "I don't know what to say..."
-        
-    # TGI / cpp / Claude inference
-    def llm_request(self, qr: str, prompt: str | None = None, chat_history: list[tuple] = [("", "")]) -> str:
-        try:
-            if prompt == None:
-                prompt = self._default_sys_prompt
-
-            prompt_template = PromptTemplate(input_variables=["history", "input"], template=prompt)
-
-            match self.inf_mode:
-                case "tgi":
-                    llm = HuggingFaceTextGenInference(
-                            inference_server_url=self.host,
-                            max_new_tokens=256,
-                            top_k=60,
-                            top_p=0.8,
-                            typical_p=0.85,
-                            temperature=0.65,
-                            repetition_penalty=1.05,
-                            timeout=40,
-                            stop_sequences=STOP_SEQS,
-                            # model_kwargs=dict(decoder_input_details=True),
-                        )
-                case "cpp":
-                    llm = LlamaCpp(
-                        model_path=str(self.host),
-                        last_n_tokens_size=64,
-                        max_tokens=1024,
-                        # min_tokens=512,
-                        temperature=0.85,
-                        top_k=30,
-                        top_p=0.8,
-                        n_batch=16,
-                        n_ctx=2048,
-                        n_gpu_layers=33,
-                        # f16_kv=True, # not sure I need this
-                        # grammar_path=CPP_MODELS / "grammar.gbnf", # TODO: develop a proper grammar file
-                        use_mlock=True,
-                        verbose=True,
-                    )
-                case "claude":
-                    llm = ChatAnthropic(anthropic_api_key=CLAUDE_TOKEN, model_name="claude-2.1", temperature=0.85, top_k=60, top_p=0.75)
-                case _:
-                    return "No such inference mode"
-        except Exception:
-            return traceback.print_exc()
-        
-        memory = ConversationBufferWindowMemory(human_prefix="Human", ai_prefix="AI", k=4)
-        for i in chat_history:
-            memory.save_context({"input": i[0]}, {"output": i[1]})
-        conversational_chain = ConversationChain(
-            llm=llm,
-            prompt=prompt_template,
-            memory=memory
+    def __init__(
+        self,
+        base_url="http://localhost:2300/v1/",
+        api_key="-",
+        model: str | None = None,
+        stream: bool = False,
+        max_tokens: int = 2048,
+        temperature: float = 0.5,
+        top_p: float = 0.90,
+        frequency_penalty: float = 1.03,
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    ):
+        self.client = OpenAI(
+            base_url=base_url,
+            api_key=api_key
         )
+        self.model = model
+        self.stream = stream
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.top_p = top_p
+        self.frequency_penalty = frequency_penalty
+        self.system_prompt = system_prompt
+        self.conversation_history = [
+            {"role": "system", "content": dedent(self.system_prompt)}
+        ]
         
-        llm_response = conversational_chain.predict(input=qr)
-        return llm_response
+    def get_default_sys_prompt(self) -> str:
+        """Return the current system prompt."""
+        return self.system_prompt
+        
+    def infer(self, qr: str, prompt: str = None, chat_history: list = None) -> str:
+        """
+        Generate a response based on user query and optional chat history.
+        This method is designed to be compatible with reply_and_remember in main.py.
+        
+        Args:
+            qr: The user query/input
+            prompt: Optional custom system prompt
+            chat_history: Optional list of (query, response) tuples from previous conversation
+            
+        Returns:
+            The model's response as a string
+        """
+        # Reset conversation with custom prompt if provided
+        if prompt:
+            self.reset_conversation(prompt)
+        elif chat_history and not self.conversation_history[1:]:
+            # Only reset if we haven't already built up history in this session
+            self.reset_conversation()
+            
+        # Ensure system prompt is in conversation history
+        if not self.conversation_history or self.conversation_history[0]["role"] != "system":
+            system_content = prompt if prompt else self.system_prompt
+            self.conversation_history.insert(0, {"role": "system", "content": dedent(system_content)})
+            
+        # Add chat history if provided and not already in conversation
+        if chat_history and len(self.conversation_history) <= 1:
+            for query, response in chat_history:
+                self.conversation_history.append({"role": "user", "content": query})
+                self.conversation_history.append({"role": "assistant", "content": response})
+                
+        # Get response to the current query
+        return self.get_non_streaming_response(qr)
 
-    def infer(self, qr: str, prompt: str = DEFAULT_PROMPT_EN, chat_history: list[tuple] = [("", "")]):
-        match self.inf_mode:
-            case "sg":
-                llm_response = self.sg_request(qr=qr, chat_history=chat_history)
-            case "tgi" | "cpp" | "claude":
-                llm_response = self.llm_request(qr=qr, prompt=prompt, chat_history=chat_history)
-            case _:
-                llm_response = "I don't know what to say: my powers are limited."
+    def get_response(self, user_input: str):
+        """
+        Get response from the model based on user input.
+        Calls the appropriate method based on streaming setting.
+        """
+        if self.stream:
+            return self.get_streaming_response(user_input)
+        else:
+            return self.get_non_streaming_response(user_input)
+
+    def get_non_streaming_response(self, user_input: str):
+        """
+        Get a complete response from the model based on user input.
+        Returns the complete response as a string.
+        """
+        # Add user message to history
+        self.conversation_history.append({"role": "user", "content": user_input})
+
+        try:
+            # Get completion from API
+            chat_completion = self.client.chat.completions.create(
+                model=self.model if self.model else self.client.models.list().data[0].id,
+                messages=self.conversation_history,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                frequency_penalty=self.frequency_penalty,
+                stream=False
+            )
+            
+            # Handle non-streaming response
+            full_response = chat_completion.choices[0].message.content
+            
+            # Add assistant's message to history
+            self.conversation_history.append({"role": "assistant", "content": full_response})
+            
+            return full_response
+                
+        except Exception as e:
+            error_msg = f"Error during API call: {str(e)}"
+            return error_msg
+
+    def get_streaming_response(self, user_input: str):
+        """
+        Get streaming response from the model based on user input.
+        Returns a generator that yields response chunks.
+        """
+        # Add user message to history
+        self.conversation_history.append({"role": "user", "content": user_input})
+
+        try:
+            # Get streaming completion from API
+            chat_completion = self.client.chat.completions.create(
+                model=self.model if self.model else self.client.models.list().data[0].id,
+                messages=self.conversation_history,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                frequency_penalty=self.frequency_penalty,
+                stream=True
+            )
+            
+            # Handle streaming response
+            full_response = ""
+            for chunk in chat_completion:
+                if hasattr(chunk.choices[0].delta, 'content'):
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        full_response += content
+                        yield content
+            
+            # Add assistant's message to history after collecting the full response
+            self.conversation_history.append({"role": "assistant", "content": full_response})
+                
+        except Exception as e:
+            error_msg = f"Error during API call: {str(e)}"
+            yield error_msg
+
+    def reset_conversation(self, custom_prompt: str = None):
+        """
+        Reset the conversation history to initial state with system prompt.
         
-        return llm_response.lstrip(r"\n+")
+        Args:
+            custom_prompt: Optional custom system prompt to use
+        """
+        if custom_prompt:
+            self.conversation_history = [
+                {"role": "system", "content": dedent(custom_prompt)}
+            ]
+        else:
+            self.conversation_history = [
+                {"role": "system", "content": dedent(self.system_prompt)}
+            ]
+
+    def start_chat(self):
+        """Start an interactive chat session in the console."""
+        print("Chat started. Type 'quit' to exit.")
+        while True:
+            user_input = input("\nYou: ")
+            if user_input.lower() in ['quit', 'exit', 'bye']:
+                break
+            
+            if self.stream:
+                print("Assistant: ", end='', flush=True)
+                for chunk in self.get_streaming_response(user_input):
+                    print(chunk, end='', flush=True)
+                print()  # Add a newline after streaming response
+            else:
+                response = self.get_non_streaming_response(user_input)
+                print(f"\nAssistant: {response}")

@@ -6,6 +6,10 @@
 **/*.yml
 **/.env
 
+# Virtual environment
+venv/
+llm-bot/
+
 # Grammar files
 **/*.gbnf
 
